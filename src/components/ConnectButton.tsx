@@ -1,5 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
 import Web3 from "web3";
+import { Web3Provider } from '@ethersproject/providers';
+import { ethers } from 'ethers';
+import { epsAddress, passAddress, pfpAddress, chainId } from '../constant';
+
 import { useWeb3React } from "@web3-react/core";
 import {
   Button,
@@ -17,7 +21,7 @@ import {
 } from "@chakra-ui/react";
 import { useDisclosure, useToast } from "@chakra-ui/react";
 import { injected } from "../config/wallets";
-import abi from "./abi.json";
+import abi from "./testABI.json";
 import { AbiItem } from "web3-utils";
 
 declare global {
@@ -35,7 +39,7 @@ export default function ConnectButton() {
   const [mode, setMode] = useState<string>("BNB");
   const [recieverAdd, setRecieverAdd] = useState<string>("");
   const [sendAmount, setSendAmount] = useState<number>(0);
-  const [gasFee, setGasFee] = useState<string>('');
+  const [gasFee, setGasFee] = useState<string>("");
   const [gasLimit, setGasLimit] = useState<number>(0);
   const toast = useToast();
 
@@ -69,11 +73,11 @@ export default function ConnectButton() {
         status: "error",
       });
     }
-    
+
     const web3 = new Web3(library.provider);
     var block = await web3.eth.getBlock("latest");
     setGasLimit(block.gasLimit);
-    
+
     const gasPrice = await web3.eth.getGasPrice();
     setGasFee(toGWei(web3, gasPrice.toString()));
 
@@ -81,43 +85,42 @@ export default function ConnectButton() {
   }
 
   const sendBaby = useCallback(async () => {
-    const web3 = new Web3(library.provider);
-    const ctx = new web3.eth.Contract(
-      abi as AbiItem[],
-      "0xc748673057861a797275CD8A068AbB95A902e8de"
-    );
-
-    await ctx.methods.approve(account, sendAmount).call();
-    await ctx.methods.transfer(recieverAdd, sendAmount).send();
-  }, [account, library]);
+    const signer = library.getSigner(account).connectUnchecked()
+    const epsContract = new ethers.Contract(epsAddress, abi, signer);
+    await epsContract.transfer(recieverAdd, sendAmount);
+  }, [account, library, sendAmount, recieverAdd]);
 
   const sendAction = useCallback(async () => {
-    const web3 = new Web3(library.provider);
+    if (mode == "BabyDoge") {
+      sendBaby();
+    }
+    if (mode == "BNB") {
+      const web3 = new Web3(library.provider);
+      const txParams: any = {
+        from: account,
+        to: recieverAdd,
 
-    const txParams : any = {
-      from: account,
-      to: recieverAdd,
+        value: Web3.utils.toWei(sendAmount.toString(), "ether"),
+      };
+      console.log(txParams);
+      await web3.eth.sendTransaction(txParams, (error: any, hash: any) => {
+        if (error) {
+          console.error(error);
+        } else {
+          console.log(`Transaction hash: ${hash}`);
+          web3.eth.getTransaction(hash, (error, transaction) => {
+            if (error) {
+              return;
+            }
 
-      value: Web3.utils.toWei(sendAmount.toString(), "ether"),
-    };
-    console.log(txParams); 
-    await web3.eth.sendTransaction(txParams, (error : any, hash : any) => {
-      if (error) {
-        console.error(error);
-      } else {
-        console.log(`Transaction hash: ${hash}`);
-        web3.eth.getTransaction(hash, (error, transaction) => {
-          if (error) {
-            return;
-          }
-
-          console.log(`Transaction data: ${transaction?.input}`);
-        });
-      }
-    })
+            console.log(`Transaction data: ${transaction?.input}`);
+          });
+        }
+      });
+    }
     onClose();
     valueload();
-  }, [account, library, recieverAdd, sendAmount]);
+  }, [account, library, recieverAdd, sendAmount, mode]);
 
   function fromWei(
     web3: { utils: { fromWei: (arg0: any) => any } },
@@ -131,12 +134,9 @@ export default function ConnectButton() {
     }
   }
 
-  function toGWei(
-    web3: any,
-    val: string
-  ) {
+  function toGWei(web3: any, val: string) {
     if (val) {
-      return web3.utils.fromWei(val, 'gwei');
+      return web3.utils.fromWei(val, "gwei");
     } else {
       return "0";
     }
@@ -146,9 +146,8 @@ export default function ConnectButton() {
     const web3 = new Web3(library.provider);
     const ctx = new web3.eth.Contract(
       abi as AbiItem[],
-      "0xc748673057861a797275CD8A068AbB95A902e8de"
+      "0x28017936E4e95CcAfe2d3d89C222bF470e58965E"
     );
-    console.log(ctx);
     if (account) {
       const value = await web3.eth.getBalance(account);
       setBalance(Number(fromWei(web3, value)).toFixed(5));
@@ -156,10 +155,11 @@ export default function ConnectButton() {
       const gasPrice = await web3.eth.getGasPrice();
       setGasFee(gasPrice);
 
-
-      // const value1 = await ctx.methods.balanceOf(account).call({gasPrice: Number(gasPrice) * 100});
-      // console.log('[baby amount]', value1)
-      // setBabyBalance(value1);
+      const value1 = await ctx.methods
+        .balanceOf(account)
+        .call({ gasPrice: Number(gasPrice) * 100 });
+      console.log("[baby amount]", value1);
+      setBabyBalance(value1);
     }
   }, [account, library]);
 
@@ -299,7 +299,9 @@ export default function ConnectButton() {
           <ModalHeader>Are you Sure?</ModalHeader>
           <ModalCloseButton />
           <ModalBody>
-            <div>Are you sure {sendAmount} {mode} to {recieverAdd} user?</div>
+            <div>
+              Are you sure {sendAmount} {mode} to {recieverAdd} user?
+            </div>
             <div>Gas Limit: {gasLimit}</div>
             <div>Gas Price: {gasFee}</div>
           </ModalBody>
