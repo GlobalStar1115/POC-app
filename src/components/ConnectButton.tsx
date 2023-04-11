@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import Web3 from "web3";
 import { Web3Provider } from '@ethersproject/providers';
 import { ethers } from 'ethers';
-import { epsAddress, passAddress, pfpAddress, chainId } from '../constant';
+import { epsAddress } from '../constant';
 
 import { useWeb3React } from "@web3-react/core";
 import {
@@ -43,9 +43,20 @@ export default function ConnectButton() {
   const [gasLimit, setGasLimit] = useState<number>(0);
   const toast = useToast();
 
+  useEffect(() => {
+    const connectState = localStorage.getItem("connectState");
+    const flagConnect = connectState === "true"
+    if (flagConnect) {
+      setConnected(flagConnect);
+      activate(injected);
+    }
+
+  }, [activate]);
+
   function handleConnectWallet() {
     connected ? deactivate() : activate(injected);
     setConnected(!connected);
+    localStorage.setItem("connectState", !connected?"true":"false");
   }
 
   function handleMode() {
@@ -91,10 +102,10 @@ export default function ConnectButton() {
   }, [account, library, sendAmount, recieverAdd]);
 
   const sendAction = useCallback(async () => {
-    if (mode == "BabyDoge") {
+    if (mode === "BabyDoge") {
       sendBaby();
     }
-    if (mode == "BNB") {
+    if (mode === "BNB") {
       const web3 = new Web3(library.provider);
       const txParams: any = {
         from: account,
@@ -340,3 +351,4 @@ export default function ConnectButton() {
     </Box>
   );
 }
+
